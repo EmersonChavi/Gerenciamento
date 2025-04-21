@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chavi - Gerenciamento de Serviços em Prédios</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+  />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            chaviBlue: '#1E40AF',
+            chaviGray: '#374151',
+            chaviAccent: '#F97316',
+            chaviLightGray: '#F3F4F6',
+          },
+          fontFamily: {
+            inter: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="bg-chaviLightGray min-h-screen flex flex-col">
+  <div id="app" class="container mx-auto p-4 max-w-4xl flex flex-col flex-grow">
+    <!-- Login Screen -->
+    <div id="login-screen" class="max-w-md mx-auto mt-20 bg-white p-8 rounded-lg shadow-lg border border-chaviBlue">
+      <h1 class="text-3xl font-bold mb-6 text-center text-chaviBlue">Chavi - Login</h1>
+      <p class="mb-6 text-center text-chaviGray">Selecione seu papel para continuar:</p>
+      <div class="flex justify-center space-x-6">
+        <button
+          id="login-manager"
+          class="bg-chaviBlue text-white px-8 py-3 rounded-lg hover:bg-chaviAccent transition duration-300 shadow-md flex items-center space-x-2"
+        >
+          <i class="fas fa-user-tie"></i>
+          <span>Gerente</span>
+        </button>
+        <button
+          id="login-worker"
+          class="bg-chaviAccent text-white px-8 py-3 rounded-lg hover:bg-chaviBlue transition duration-300 shadow-md flex items-center space-x-2"
+        >
+          <i class="fas fa-hard-hat"></i>
+          <span>Trabalhador</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="main-app" class="hidden flex flex-col flex-grow">
+      <header class="flex justify-between items-center py-4 border-b border-chaviGray">
+        <h1 class="text-4xl font-extrabold text-chaviBlue">Chavi - Gerenciamento de Serviços</h1>
+        <button
+          id="logout-btn"
+          class="text-red-600 hover:text-red-800 transition flex items-center space-x-1"
+          title="Sair"
+        >
+          <i class="fas fa-sign-out-alt"></i>
+          <span>Sair</span>
+        </button>
+      </header>
+
+      <main class="flex-grow overflow-auto mt-6">
+        <!-- Manager Controls -->
+        <section id="manager-controls" class="mb-10 hidden">
+          <h2 class="text-2xl font-semibold mb-5 text-chaviGray">Adicionar Prédio</h2>
+          <form id="add-building-form" class="flex space-x-4 mb-8">
+            <input
+              type="text"
+              id="building-name"
+              placeholder="Nome do prédio"
+              required
+              class="flex-grow px-5 py-3 border border-chaviGray rounded-lg focus:outline-none focus:ring-2 focus:ring-chaviBlue"
+            />
+            <button
+              type="submit"
+              class="bg-chaviBlue text-white px-8 py-3 rounded-lg hover:bg-chaviAccent transition duration-300 shadow-md"
+            >
+              Adicionar
+            </button>
+          </form>
+        </section>
+
+        <!-- Buildings List -->
+        <section id="buildings-list" class="space-y-10">
+          <!-- Buildings will be dynamically added here -->
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // State and localStorage keys
+    const STORAGE_KEY = 'gerenciamentoServicosData';
+    const ROLE_KEY = 'gerenciamentoServicosRole';
+    const KM_KEY = 'gerenciamentoServicosKm';
+
+    let state = {
+      role: null,
+      buildings: [],
+      kmTraveled: 0,
+    };
+
+    // Elements
+    const loginScreen = document.getElementById('login-screen');
+    const mainApp = document.getElementById('main-app');
+    const loginManagerBtn = document.getElementById('login-manager');
+    const loginWorkerBtn = document.getElementById('login-worker');
+    const logoutBtn = document.getElementById('logout-btn');
+    const managerControls = document.getElementById('manager-controls');
+    const addBuildingForm = document.getElementById('add-building-form');
+    const buildingNameInput = document.getElementById('building-name');
+    const buildingsList = document.getElementById('buildings-list');
+
+    // Load state from localStorage
+    function loadState() {
+      const savedData = localStorage.getItem(STORAGE_KEY);
+      const savedRole = localStorage.getItem(ROLE_KEY);
+      const savedKm = localStorage.getItem(KM_KEY);
+      if (savedData) {
+        try {
+          state.buildings = JSON.parse(savedData);
+        } catch {
+          state.buildings = [];
+        }
+      }
+      if (savedRole) {
+        state.role = savedRole;
+      }
+      if (savedKm) {
+        state.kmTraveled = parseFloat(savedKm) || 0;
+      }
+    }
+
+    // Save state to localStorage
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.buildings));
+      localStorage.setItem(ROLE_KEY, state.role);
+      localStorage.setItem(KM_KEY, state.kmTraveled.toString());
+    }
+
+    // Render functions
+    function render() {
+      if (!state.role) {
+        loginScreen.classList.remove('hidden');
+        mainApp.classList.add('hidden');
+        return;
+      }
+      loginScreen.classList.add('hidden');
+      mainApp.classList.remove('hidden');
+
+      if (state.role === 'gerente') {
+        managerControls.classList.remove('hidden');
+      } else {
+        managerControls.classList.add('hidden');
+      }
+
+      renderBuildings();
+      renderKmInput();
+    }
+
+    function renderBuildings() {
+      buildingsList.innerHTML = '';
+      if (state.buildings.length === 0) {
+        buildingsList.innerHTML = '<p class="text-center text-chaviGray">Nenhum prédio cadastrado.</p>';
+        return;
+      }
+
+      state.buildings.forEach((building, bIndex) => {
+        const buildingDiv = document.createElement('div');
+        buildingDiv.className = 'bg-white p-8 rounded-lg shadow-lg border border-chaviGray';
+
+        const buildingHeader = document.createElement('div');
+        buildingHeader.className = 'flex justify-between items-center mb-6';
+
+        const buildingTitle = document.createElement('h3');
+        buildingTitle.className = 'text-2xl font-semibold text-chaviBlue';
+        buildingTitle.textContent = building.name;
+
+        buildingHeader.appendChild(buildingTitle);
+
+        if (state.role === 'gerente') {
+          // Add task form toggle button
+          const toggleTaskFormBtn = document.createElement('button');
+          toggleTaskFormBtn.className = 'text-chaviAccent hover:text-chaviBlue transition flex items-center space-x-2 font-semibold';
+          toggleTaskFormBtn.innerHTML = '<i class="fas fa-plus"></i><span>Adicionar tarefa</span>';
+          toggleTaskFormBtn.addEventListener('click', () => {
+            taskForm.classList.toggle('hidden');
+          });
+          buildingHeader.appendChild(toggleTaskFormBtn);
+
+          // Add delete building button
+          const deleteBuildingBtn = document.createElement('button');
+          deleteBuildingBtn.className = 'text-red-600 hover:text-red-800 transition flex items-center space-x-2 font-semibold ml-4';
+          deleteBuildingBtn.innerHTML = '<i class="fas fa-trash-alt"></i><span>Apagar prédio</span>';
+          deleteBuildingBtn.addEventListener('click', () => {
+            if (confirm(`Tem certeza que deseja apagar o prédio "${building.name}"?`)) {
+              deleteBuilding(bIndex);
+            }
+          });
+          buildingHeader.appendChild(deleteBuildingBtn);
+        }
+
+        buildingDiv.appendChild(buildingHeader);
+
+        // Task form (only for manager)
+        const taskForm = document.createElement('form');
+        taskForm.className = 'mb-6 hidden';
+        taskForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const taskDesc = taskInput.value.trim();
+          const apartmentNum = apartmentInput.value.trim();
+          if (!taskDesc) return;
+          addTask(bIndex, taskDesc, apartmentNum);
+          taskInput.value = '';
+          apartmentInput.value = '';
+          taskForm.classList.add('hidden');
+        });
+        
+        // Add conclude button
+        const concludeBtn = document.createElement('button');
+        concludeBtn.type = 'button';
+        concludeBtn.className = 'ml-4 bg-chaviAccent text-white px-4 py-2 rounded-lg hover:bg-chaviBlue transition duration-300 shadow-md';
+        concludeBtn.textContent = 'Concluir';
+        concludeBtn.addEventListener('click', () => {
+          const taskDesc = taskInput.value.trim();
+          const apartmentNum = apartmentInput.value.trim();
+          if (!taskDesc) return;
+          addTask(bIndex, taskDesc, apartmentNum, true);
+          taskInput.value = '';
+          apartmentInput.value = '';
+          taskForm.classList.add('hidden');
+        });
+        taskForm.appendChild(concludeBtn);
+
+        const taskInput = document.createElement('input');
+        taskInput.type = 'text';
+        taskInput.placeholder = 'Descrição da tarefa no apartamento';
+        taskInput.required = true;
+        taskInput.className = 'w-full px-4 py-3 border border-chaviGray rounded-lg focus:outline-none focus:ring-2 focus:ring-chaviBlue mb-3';
+
+        const apartmentInput = document.createElement('input');
+        apartmentInput.type = 'text';
+        apartmentInput.placeholder = 'Número do apartamento';
+        apartmentInput.className = 'w-full px-4 py-3 border border-chaviGray rounded-lg focus:outline-none focus:ring-2 focus:ring-chaviBlue';
+
+        taskForm.appendChild(taskInput);
+        taskForm.appendChild(apartmentInput);
+        buildingDiv.appendChild(taskForm);
+
+        // Tasks list
+        const tasksList = document.createElement('ul');
+        tasksList.className = 'space-y-3';
+
+        if (building.tasks.length === 0) {
+          const noTasks = document.createElement('p');
+          noTasks.className = 'text-chaviGray italic';
+          noTasks.textContent = 'Nenhuma tarefa cadastrada.';
+          tasksList.appendChild(noTasks);
+        } else {
+        building.tasks.forEach((task, tIndex) => {
+          // Show all tasks to manager, only concluded tasks to worker
+          if (state.role === 'trabalhador' && !task.concluded) {
+            return;
+          }
+          const taskItem = document.createElement('li');
+          taskItem.className = 'flex items-center justify-between space-x-3 bg-chaviLightGray p-3 rounded-lg border border-chaviGray';
+
+          const leftDiv = document.createElement('div');
+          leftDiv.className = 'flex items-center space-x-3';
+
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = task.done;
+          checkbox.disabled = false; // Both roles can check/uncheck tasks
+          checkbox.className = 'w-5 h-5 text-chaviBlue rounded focus:ring-chaviBlue';
+          checkbox.addEventListener('change', () => {
+            toggleTaskDone(bIndex, tIndex, checkbox.checked);
+          });
+
+          const taskDesc = document.createElement('span');
+          taskDesc.textContent = task.description + (task.apartment ? ` (Apt ${task.apartment})` : '');
+          if (task.done) {
+            taskDesc.className = 'line-through text-gray-400';
+          } else {
+            taskDesc.className = 'text-chaviGray';
+          }
+
+          leftDiv.appendChild(checkbox);
+          leftDiv.appendChild(taskDesc);
+
+          taskItem.appendChild(leftDiv);
+
+          if (state.role === 'gerente') {
+            const doneLabel = document.createElement('span');
+            doneLabel.className = 'text-green-600 font-semibold';
+            doneLabel.textContent = task.done ? 'Concluída' : 'Pendente';
+            taskItem.appendChild(doneLabel);
+          }
+
+          tasksList.appendChild(taskItem);
+        });
+        }
+
+        buildingDiv.appendChild(tasksList);
+
+        buildingsList.appendChild(buildingDiv);
+      });
+    }
+
+
+    function renderKmInput() {
+      // Remove existing km input if any
+      const existingKmDiv = document.getElementById('km-input-div');
+      if (existingKmDiv) {
+        existingKmDiv.remove();
+      }
+
+      if (state.role === 'trabalhador') {
+        const kmDiv = document.createElement('div');
+        kmDiv.id = 'km-input-div';
+        kmDiv.className = 'bg-white p-6 rounded-lg shadow-lg border border-chaviGray mt-8 max-w-md mx-auto space-y-4';
+
+        const kmStartLabel = document.createElement('label');
+        kmStartLabel.htmlFor = 'km-start-input';
+        kmStartLabel.className = 'block text-chaviGray font-semibold text-lg';
+        kmStartLabel.textContent = 'Quilômetro inicial no velocímetro:';
+
+        const kmStartInput = document.createElement('input');
+        kmStartInput.type = 'number';
+        kmStartInput.id = 'km-start-input';
+        kmStartInput.min = '0';
+        kmStartInput.step = '0.1';
+        kmStartInput.value = state.kmStart || '';
+        kmStartInput.className = 'w-full px-4 py-3 border border-chaviGray rounded-lg focus:outline-none focus:ring-2 focus:ring-chaviBlue';
+
+        const kmEndLabel = document.createElement('label');
+        kmEndLabel.htmlFor = 'km-end-input';
+        kmEndLabel.className = 'block text-chaviGray font-semibold text-lg';
+        kmEndLabel.textContent = 'Quilômetro final no velocímetro:';
+
+        const kmEndInput = document.createElement('input');
+        kmEndInput.type = 'number';
+        kmEndInput.id = 'km-end-input';
+        kmEndInput.min = '0';
+        kmEndInput.step = '0.1';
+        kmEndInput.value = state.kmEnd || '';
+        kmEndInput.className = 'w-full px-4 py-3 border border-chaviGray rounded-lg focus:outline-none focus:ring-2 focus:ring-chaviBlue';
+
+        const kmTraveledLabel = document.createElement('p');
+        kmTraveledLabel.id = 'km-traveled-label';
+        kmTraveledLabel.className = 'text-chaviGray font-semibold text-lg';
+
+        function updateKmTraveled() {
+          const start = parseFloat(kmStartInput.value);
+          const end = parseFloat(kmEndInput.value);
+          if (!isNaN(start) && !isNaN(end) && end >= start) {
+            const traveled = end - start;
+            kmTraveledLabel.textContent = `Quilômetros percorridos hoje (moto): ${traveled.toFixed(1)} km`;
+            state.kmTraveled = traveled;
+            saveState();
+          } else {
+            kmTraveledLabel.textContent = 'Informe os valores válidos de quilometragem inicial e final.';
+            state.kmTraveled = 0;
+            saveState();
+          }
+        }
+
+        kmStartInput.addEventListener('input', updateKmTraveled);
+        kmEndInput.addEventListener('input', updateKmTraveled);
+
+        kmDiv.appendChild(kmStartLabel);
+        kmDiv.appendChild(kmStartInput);
+        kmDiv.appendChild(kmEndLabel);
+        kmDiv.appendChild(kmEndInput);
+        kmDiv.appendChild(kmTraveledLabel);
+
+        mainApp.querySelector('main').prepend(kmDiv);
+      } else if (state.role === 'gerente') {
+        // Show km traveled summary for manager
+        const kmDiv = document.createElement('div');
+        kmDiv.id = 'km-input-div';
+        kmDiv.className = 'bg-white p-6 rounded-lg shadow-lg border border-chaviGray mt-8 max-w-md mx-auto text-center text-chaviGray font-semibold text-lg';
+
+        kmDiv.textContent = `Quilômetros percorridos hoje (moto): ${state.kmTraveled.toFixed(1)} km`;
+
+        mainApp.querySelector('main').prepend(kmDiv);
+      }
+    }
+
+    // Add building
+    function addBuilding(name) {
+      state.buildings.push({ name, tasks: [] });
+      saveState();
+      render();
+    }
+
+    // Delete building
+    function deleteBuilding(buildingIndex) {
+      state.buildings.splice(buildingIndex, 1);
+      saveState();
+      render();
+    }
+
+        // Add task to building
+        function addTask(buildingIndex, description, apartment, concluded = false) {
+          state.buildings[buildingIndex].tasks.push({ description, apartment, done: false, concluded });
+          saveState();
+          render();
+        }
+
+    // Toggle task done
+    function toggleTaskDone(buildingIndex, taskIndex, done) {
+      state.buildings[buildingIndex].tasks[taskIndex].done = done;
+      saveState();
+      render();
+    }
+
+    // Login handlers
+    loginManagerBtn.addEventListener('click', () => {
+      state.role = 'gerente';
+      saveState();
+      render();
+    });
+
+    loginWorkerBtn.addEventListener('click', () => {
+      state.role = 'trabalhador';
+      saveState();
+      render();
+    });
+
+    // Logout handler
+    logoutBtn.addEventListener('click', () => {
+      state.role = null;
+      saveState();
+      render();
+    });
+
+    // Add building form submit
+    addBuildingForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = buildingNameInput.value.trim();
+      if (!name) return;
+      addBuilding(name);
+      buildingNameInput.value = '';
+    });
+
+    // Initialize
+    loadState();
+    render();
+  </script>
+</body>
+</html>
